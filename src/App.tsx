@@ -143,8 +143,8 @@ const TRANSLATIONS = {
 };
 
 // --- Data ---
-const BOOKS_API = '/api/books';
-const LOCK_API = '/api/lock';
+const BOOKS_API = 'https://bookstore.twoheart.workers.dev/api/books';
+const LOCK_API = 'https://bookstore.twoheart.workers.dev/api/lock';
 
 // --- Components ---
 
@@ -412,13 +412,14 @@ export default function App() {
         const response = await fetch(`${BOOKS_API}?t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
-        const data = await response.json();
+        const json = await response.json();
+        const bookData = json.data || json;
         
-        if (!Array.isArray(data)) {
+        if (!Array.isArray(bookData)) {
           throw new Error('Data format error: Expected an array of books');
         }
         
-        const formattedBooks: Book[] = data.map((item: any) => ({
+        const formattedBooks: Book[] = bookData.map((item: any) => ({
           id: String(item.id),
           title: item.title,
           originalPrice: item.originalPrice || 0,
@@ -427,7 +428,7 @@ export default function App() {
           coverImage: getProxiedImage(item.cover),
           isClaimed: item.status === 'sold_out',
           isLocked: item.status === 'locked',
-          claimedBy: item.claimedBy,
+          claimedBy: item.claimed_by || item.claimedBy,
           description: item.description,
           doubanUrl: item.doubanUrl
         }));
