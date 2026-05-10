@@ -143,8 +143,8 @@ const TRANSLATIONS = {
 };
 
 // --- Data ---
-const BOOKS_API = 'https://bookstore.twoheart.workers.dev/api/books';
-const LOCK_API = 'https://bookstore.twoheart.workers.dev/api/lock';
+const BOOKS_API = 'https://api.nofan.xyz/api/books';
+const LOCK_API = 'https://api.nofan.xyz/api/lock';
 
 // --- Components ---
 
