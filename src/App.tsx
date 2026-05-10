@@ -70,8 +70,8 @@ const TRANSLATIONS = {
     contactNotice: "We'll contact you on the fediverse for shipping details.",
     seeYou: 'See you on the timeline!',
     selectedItem: 'SELECTED ITEM',
-    handleLabel: 'Mastodon Instance',
-    handlePlaceholder: 'e.g. @user@mastodon.social',
+    handleLabel: 'Instance Domain',
+    handlePlaceholder: 'e.g. nofan.xyz',
     nameLabel: 'Recipient Name',
     namePlaceholder: 'Your full name...',
     addressLabel: 'Shipping Address',
@@ -117,8 +117,8 @@ const TRANSLATIONS = {
     contactNotice: '我们将通过联邦宇宙（Fediverse）联系你确认邮寄详情。',
     seeYou: '时间线上见！',
     selectedItem: '已选项目',
-    handleLabel: '长毛象实例 ID',
-    handlePlaceholder: '例如 @user@social.com',
+    handleLabel: '实例域名 (Instance Domain)',
+    handlePlaceholder: '例如 nofan.xyz',
     nameLabel: '收件人姓名',
     namePlaceholder: '请填写收件人姓名...',
     addressLabel: '详细收货地址',
@@ -322,7 +322,7 @@ export default function App() {
 
   const [isClaiming, setIsClaiming] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [handle, setHandle] = useState('');
+  const [handle, setHandle] = useState('nofan.xyz');
   const [recipientName, setRecipientName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
@@ -332,6 +332,9 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [instanceList, setInstanceList] = useState<string[]>(['nofan.xyz']);
+  const [showInstanceSuggestions, setShowInstanceSuggestions] = useState(false);
+  const [isInstanceListLoading, setIsInstanceListLoading] = useState(false);
 
   const categories = useMemo(() => {
     const uniqueCategories = Array.from(new Set(books.map(b => b.category)));
@@ -363,6 +366,35 @@ export default function App() {
     }
     return url;
   };
+
+  const filteredInstances = useMemo(() => {
+    const query = handle.trim().toLowerCase();
+    if (!query) return instanceList.slice(0, 20);
+    return instanceList
+      .filter(domain => domain.toLowerCase().includes(query))
+      .slice(0, 50);
+  }, [handle, instanceList]);
+
+  useEffect(() => {
+    const fetchInstances = async () => {
+      setIsInstanceListLoading(true);
+      try {
+        const response = await fetch('https://api.joinmastodon.org/servers');
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        const domains = data.map((s: any) => s.domain);
+        // Prepend nofan.xyz and remove duplicates
+        const combined = Array.from(new Set(['nofan.xyz', ...domains]));
+        setInstanceList(combined);
+      } catch (err) {
+        console.error('Failed to fetch instance list', err);
+        setInstanceList(['nofan.xyz']);
+      } finally {
+        setIsInstanceListLoading(false);
+      }
+    };
+    fetchInstances();
+  }, []);
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -404,8 +436,7 @@ export default function App() {
   }, []);
 
   const getShareUrl = () => {
-    const parts = handle.replace(/^@/, '').split('@').filter(Boolean);
-    const domain = parts[parts.length - 1];
+    const domain = handle.trim().replace(/^@/, '');
     
     const bookTitles = cart.map(b => `《${b.title}》`).join('、');
     const message = `@twoheart@nofan.xyz 二心你好！我想认领 ${cart.length} 本书：${bookTitles}。
@@ -415,9 +446,8 @@ export default function App() {
 电话：${phone}
 地址：${address}`;
 
-    // If domain is found, use it (custom user instance)
-    // Otherwise default to nofan.social as per prompt template
-    const instanceUrl = domain && domain.includes('.') ? `https://${domain}` : 'https://nofan.social';
+    // fallback to nofan.xyz
+    const instanceUrl = domain && domain.includes('.') ? `https://${domain}` : 'https://nofan.xyz';
     return `${instanceUrl}/share?text=${encodeURIComponent(message)}&visibility=direct`;
   };
 
@@ -444,15 +474,7 @@ export default function App() {
         window.open(shareUrl, '_blank');
       }
 
-      // Update books state
-      const claimedIds = cart.map(item => item.id);
-      setBooks(prev => prev.map(b => 
-        claimedIds.includes(b.id) 
-          ? { ...b, isClaimed: true, claimedBy: handle } 
-          : b
-      ));
-
-      // Removed auto-close setTimeout
+      // Removed manual state update of books as per user request
     }, 2000);
   };
 
@@ -460,7 +482,7 @@ export default function App() {
     setIsCartOpen(false);
     if (isSuccess) {
       setIsSuccess(false);
-      setHandle('');
+      setHandle('nofan.xyz');
       setRecipientName('');
       setAddress('');
       setPhone('');
@@ -709,18 +731,60 @@ export default function App() {
 
                       <form onSubmit={handleClaimSubmit} className="space-y-4">
                         <div className="space-y-4">
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 relative group">
                             <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
                               <Server className="w-3 h-3" /> {t.handleLabel}
                             </label>
-                            <input 
-                              required
-                              type="text"
-                              placeholder={t.handlePlaceholder}
-                              value={handle}
-                              onChange={(e) => setHandle(e.target.value)}
-                              className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all font-mono"
-                            />
+                            <div className="relative">
+                              <input 
+                                required
+                                type="text"
+                                placeholder={t.handlePlaceholder}
+                                value={handle}
+                                onChange={(e) => {
+                                  setHandle(e.target.value);
+                                  setShowInstanceSuggestions(true);
+                                }}
+                                onFocus={() => setShowInstanceSuggestions(true)}
+                                onBlur={() => {
+                                  // Delay to allow clicking on suggestion
+                                  setTimeout(() => setShowInstanceSuggestions(false), 200);
+                                }}
+                                className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all font-mono"
+                              />
+                              
+                              <AnimatePresence>
+                                {showInstanceSuggestions && filteredInstances.length > 0 && (
+                                  <motion.div 
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto"
+                                  >
+                                    {filteredInstances.map((domain) => (
+                                      <button
+                                        key={domain}
+                                        type="button"
+                                        onClick={() => {
+                                          setHandle(domain);
+                                          setShowInstanceSuggestions(false);
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-xs font-mono hover:bg-[#6364ff]/5 hover:text-[#6364ff] transition-colors flex items-center justify-between group/item border-b border-gray-50 last:border-0"
+                                      >
+                                        <span>{domain}</span>
+                                        {domain === 'nofan.xyz' && <span className="text-[8px] bg-[#6364ff]/10 px-1.5 py-0.5 rounded text-[#6364ff] font-bold">LOCAL</span>}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+
+                              {isInstanceListLoading && !instanceList.length && (
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                  <div className="w-3.5 h-3.5 border-2 border-[#6364ff]/20 border-t-[#6364ff] rounded-full animate-spin" />
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           <div className="space-y-1.5">
