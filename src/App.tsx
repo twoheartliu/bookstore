@@ -17,7 +17,9 @@ import {
   Package,
   Server,
   MoveHorizontal,
-  Languages
+  Languages,
+  ShoppingCart,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -47,8 +49,12 @@ const TRANSLATIONS = {
     fundraisingProgress: 'Fundraising Progress',
     proceedsNotice: 'All proceeds go directly to server hosting & bandwidth.',
     allBooks: 'All Books',
+    all: 'All',
     computerScience: 'Computer Science',
     literature: 'Literature',
+    humanities: 'Humanities',
+    finance: 'Finance',
+    tech: 'Tech',
     philosophy: 'Philosophy',
     bundles: 'Bundles',
     claimedBy: 'Claimed By',
@@ -64,15 +70,23 @@ const TRANSLATIONS = {
     contactNotice: "We'll contact you on the fediverse for shipping details.",
     seeYou: 'See you on the timeline!',
     selectedItem: 'SELECTED ITEM',
-    handleLabel: 'Mastodon Handle',
+    handleLabel: 'Mastodon Instance',
+    handlePlaceholder: 'e.g. @user@mastodon.social',
+    nameLabel: 'Recipient Name',
+    namePlaceholder: 'Your full name...',
     addressLabel: 'Shipping Address',
-    addressPlaceholder: 'Recipient Name, Phone, and Full Address...',
+    addressPlaceholder: 'Street, City, State, ZIP...',
+    phoneLabel: 'Phone Number',
+    phonePlaceholder: 'Mobile or Phone number...',
+    addToCart: 'Add to Cart',
+    removeFromCart: 'Remove',
+    manualConfirmationNotice: 'Claiming is subject to manual confirmation (first come, first served). Status updates may be delayed; please refer to the private message response.',
     shippingNotice: 'Note: Books are heavy. To simplify shipping costs, all items are shipped via SF Express Pay-on-Delivery (顺丰到付). This is the same price as pre-paid.',
     donateAndClaim: 'Donate & Claim',
     secureCheckout: 'SECURE FEDERATED CHECKOUT',
     serverStatus: 'Server Status',
     statusOnline: 'Online',
-    builtForFed: 'Built for the Federation'
+    builtForFed: 'Built for the nofan Federation'
   },
   zh: {
     siteTitle: '二心的旧书架',
@@ -82,8 +96,12 @@ const TRANSLATIONS = {
     fundraisingProgress: '筹款进度',
     proceedsNotice: '所有收益将直接用于服务器托管和带宽支出。',
     allBooks: '全部书籍',
+    all: '全部',
     computerScience: '计算机科学',
     literature: '文学',
+    humanities: '人文社科',
+    finance: '金融经济',
+    tech: '技术/计算机',
     philosophy: '哲学/逻辑',
     bundles: '精选套装',
     claimedBy: '认领者',
@@ -99,23 +117,28 @@ const TRANSLATIONS = {
     contactNotice: '我们将通过联邦宇宙（Fediverse）联系你确认邮寄详情。',
     seeYou: '时间线上见！',
     selectedItem: '已选项目',
-    handleLabel: '长毛象 ID (Handle)',
-    addressLabel: '收货地址',
-    addressPlaceholder: '收件人姓名、电话及详细地址...',
+    handleLabel: '长毛象实例 ID',
+    handlePlaceholder: '例如 @user@social.com',
+    nameLabel: '收件人姓名',
+    namePlaceholder: '请填写收件人姓名...',
+    addressLabel: '详细收货地址',
+    addressPlaceholder: '请填写详细收货地址...',
+    phoneLabel: '联系电话',
+    phonePlaceholder: '请填写手机号码...',
+    addToCart: '加入购物车',
+    removeFromCart: '移出购物车',
+    manualConfirmationNotice: '认领采用人工确认制（先发先得），页面状态可能存在延迟，请以私信回复为准。',
     shippingNotice: '注：书籍较重，为节省计算邮费和称重的精力，所有书籍统一发顺丰到付（顺丰到付与寄付价格一致，无额外溢价）。',
-    donateAndClaim: '捐赠并认领',
+    donateAndClaim: '去结算 & 发送私信',
     secureCheckout: '安全联邦结账',
     serverStatus: '服务器状态',
     statusOnline: '在线',
-    builtForFed: '为联邦宇宙而建'
+    builtForFed: '爱来自 nofan'
   }
 };
 
 // --- Data ---
 const GIST_URL = 'https://gist.githubusercontent.com/twoheartliu/de948c91619fd8cb1c26e9b14b7dc100/raw';
-
-const FUNDRAISING_GOAL = 5000;
-const CURRENT_FUNDS = 3740;
 
 // --- Components ---
 
@@ -158,9 +181,9 @@ const Card = ({ children, className = "" }: any) => (
 
 const Badge = ({ children, variant = "default" }: any) => {
   const variants: any = {
-    default: "bg-[#6364ff]/10 text-[#6364ff]",
-    sold: "bg-gray-100 text-gray-500",
-    accent: "bg-orange-100 text-orange-700"
+    default: "bg-white/95 text-[#6364ff] border border-[#6364ff]/20 shadow-sm",
+    sold: "bg-gray-100 text-gray-500 border border-transparent",
+    accent: "bg-orange-100 text-orange-700 border border-transparent"
   };
   return (
     <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${variants[variant]}`}>
@@ -224,7 +247,9 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
   }
 };
 
-const BookCard = ({ book, onClaim, t }: { book: Book; onClaim: (b: Book) => void; t: any }) => {
+const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t }: { book: Book; onAddToCart: (b: Book) => void; onRemoveFromCart: (id: string) => void; isInCart: boolean; t: any }) => {
+  const categoryLabel = t[book.category] || book.category;
+  
   return (
     <Card className={`flex flex-col h-full ${book.isClaimed ? 'opacity-70 grayscale-[0.3]' : ''}`}>
       <div className="relative aspect-[3/4] overflow-hidden group">
@@ -237,8 +262,8 @@ const BookCard = ({ book, onClaim, t }: { book: Book; onClaim: (b: Book) => void
           data-original-url={book.coverImage.includes('googleusercontent.com') ? decodeURIComponent(new URL(book.coverImage).searchParams.get('url') || '') : book.coverImage}
         />
         <div className="absolute top-2 left-2 flex flex-col gap-1">
-          <Badge variant={book.isClaimed ? "sold" : "default"}>
-            {book.isClaimed ? t.reserved : book.category}
+          <Badge variant={book.isClaimed ? "sold" : (isInCart ? "accent" : "default")}>
+            {book.isClaimed ? t.reserved : categoryLabel}
           </Badge>
         </div>
         {book.doubanUrl && (
@@ -276,12 +301,12 @@ const BookCard = ({ book, onClaim, t }: { book: Book; onClaim: (b: Book) => void
             <span className="text-[10px] text-gray-300 line-through">¥{book.originalPrice}</span>
           </div>
           <Button 
-            variant={book.isClaimed ? "secondary" : "primary"}
+            variant={book.isClaimed ? "secondary" : (isInCart ? "secondary" : "primary")}
             disabled={book.isClaimed}
-            onClick={() => onClaim(book)}
-            className="!px-3 !py-1.5"
+            onClick={() => isInCart ? onRemoveFromCart(book.id) : onAddToCart(book)}
+            className="!px-3 !py-1.5 min-w-[100px]"
           >
-            {book.isClaimed ? t.reserved : t.claimBook}
+            {book.isClaimed ? t.reserved : (isInCart ? t.removeFromCart : t.addToCart)}
           </Button>
         </div>
       </div>
@@ -295,14 +320,40 @@ export default function App() {
   const [locale, setLocale] = useState<Locale>('zh');
   const t = TRANSLATIONS[locale];
 
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [isClaiming, setIsClaiming] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [handle, setHandle] = useState('');
+  const [recipientName, setRecipientName] = useState('');
   const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [books, setBooks] = useState<Book[]>([]);
+  const [cart, setCart] = useState<Book[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(new Set(books.map(b => b.category)));
+    return ['all', ...uniqueCategories];
+  }, [books]);
+
+  const filteredBooks = useMemo(() => {
+    if (selectedCategory === 'all') return books;
+    return books.filter(b => b.category === selectedCategory);
+  }, [books, selectedCategory]);
+
+  const totalPrice = useMemo(() => {
+    return cart.reduce((sum, item) => sum + item.charityPrice, 0);
+  }, [cart]);
+
+  const currentFunds = useMemo(() => {
+    return books.filter(b => b.isClaimed).reduce((sum, b) => sum + b.charityPrice, 0);
+  }, [books]);
+
+  const totalGoal = useMemo(() => {
+    return books.reduce((sum, b) => sum + b.charityPrice, 0);
+  }, [books]);
 
   const getProxiedImage = (url: string) => {
     if (!url) return '';
@@ -355,11 +406,28 @@ export default function App() {
   const getShareUrl = () => {
     const parts = handle.replace(/^@/, '').split('@').filter(Boolean);
     const domain = parts[parts.length - 1];
-    if (domain && domain.includes('.')) {
-      const message = `@twoheart@nofan.xyz 我想认领《${selectedBook?.title}》，地址是：${address}`;
-      return `https://${domain}/share?text=${encodeURIComponent(message)}&visibility=direct`;
-    }
-    return null;
+    
+    const bookTitles = cart.map(b => `《${b.title}》`).join('、');
+    const message = `@twoheart@nofan.xyz 二心你好！我想认领 ${cart.length} 本书：${bookTitles}。
+总计赞助额：${totalPrice} 元。
+我的顺丰到付收件信息是：
+姓名：${recipientName}
+电话：${phone}
+地址：${address}`;
+
+    // If domain is found, use it (custom user instance)
+    // Otherwise default to nofan.social as per prompt template
+    const instanceUrl = domain && domain.includes('.') ? `https://${domain}` : 'https://nofan.social';
+    return `${instanceUrl}/share?text=${encodeURIComponent(message)}&visibility=direct`;
+  };
+
+  const addToCart = (book: Book) => {
+    if (cart.find(b => b.id === book.id)) return;
+    setCart([...cart, book]);
+  };
+
+  const removeFromCart = (bookId: string) => {
+    setCart(cart.filter(b => b.id !== bookId));
   };
 
   const handleClaimSubmit = (e: React.FormEvent) => {
@@ -377,8 +445,9 @@ export default function App() {
       }
 
       // Update books state
+      const claimedIds = cart.map(item => item.id);
       setBooks(prev => prev.map(b => 
-        b.id === selectedBook?.id 
+        claimedIds.includes(b.id) 
           ? { ...b, isClaimed: true, claimedBy: handle } 
           : b
       ));
@@ -388,19 +457,16 @@ export default function App() {
   };
 
   const handleManualClose = () => {
-    setSelectedBook(null);
-    setIsSuccess(false);
-    setHandle('');
-    setAddress('');
+    setIsCartOpen(false);
+    if (isSuccess) {
+      setIsSuccess(false);
+      setHandle('');
+      setRecipientName('');
+      setAddress('');
+      setPhone('');
+      setCart([]);
+    }
   };
-
-  const navCategories = [
-    { key: 'allBooks', label: t.allBooks },
-    { key: 'computerScience', label: t.computerScience },
-    { key: 'literature', label: t.literature },
-    { key: 'philosophy', label: t.philosophy },
-    { key: 'bundles', label: t.bundles },
-  ];
 
   return (
     <div className="min-h-screen p-4 md:p-8 lg:p-12 selection:bg-[#6364ff]/20">
@@ -434,7 +500,7 @@ export default function App() {
             </div>
             
             <div className="md:w-1/3 bg-white p-6 rounded-2xl border border-[#6364ff]/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
-              <ProgressBar current={CURRENT_FUNDS} goal={FUNDRAISING_GOAL} t={t} />
+              <ProgressBar current={currentFunds} goal={totalGoal} t={t} />
               <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#6364ff]" />
                 <span>{t.proceedsNotice}</span>
@@ -443,14 +509,19 @@ export default function App() {
           </div>
         </header>
 
-        {/* Categories / Filter Mock */}
-        <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
-          {navCategories.map((cat, i) => (
+        {/* Categories / Filter */}
+        <div className="flex gap-4 mb-12 overflow-x-auto pb-4 scrollbar-hide">
+          {categories.map((cat) => (
             <button 
-              key={cat.key}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${i === 0 ? 'bg-[#6364ff] text-white shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`whitespace-nowrap px-5 py-2 rounded-full text-xs font-mono font-bold uppercase tracking-widest transition-all duration-300 ${
+                selectedCategory === cat 
+                  ? 'bg-[#6364ff] text-white shadow-lg shadow-[#6364ff]/20 scale-105' 
+                  : 'bg-white text-gray-400 hover:text-[#6364ff] border border-[#6364ff]/5'
+              }`}
             >
-              {cat.label}
+              {cat === 'all' ? t.all : (t[cat] || cat)}
             </button>
           ))}
         </div>
@@ -475,9 +546,26 @@ export default function App() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {books.map(book => (
-                <BookCard key={book.id} book={book} onClaim={(b) => setSelectedBook(b)} t={t} />
-              ))}
+              <AnimatePresence mode="popLayout">
+                {filteredBooks.map(book => (
+                  <motion.div
+                    key={book.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <BookCard 
+                      book={book} 
+                      onAddToCart={addToCart} 
+                      onRemoveFromCart={removeFromCart}
+                      isInCart={!!cart.find(b => b.id === book.id)}
+                      t={t} 
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </section>
@@ -495,149 +583,224 @@ export default function App() {
           <div className="flex gap-6">
             <a href="#" className="hover:text-[#6364ff] transition-colors"><BookOpen className="w-5 h-5" /></a>
             <a href="#" className="hover:text-[#6364ff] transition-colors"><User className="w-5 h-5" /></a>
-            <a href="#" className="hover:text-[#6364ff] transition-colors text-xs font-mono font-bold">@ADMIN</a>
+            <a href="https://nofan.xyz/@twoheart" className="hover:text-[#6364ff] transition-colors text-xs font-mono font-bold">@twoheart</a>
           </div>
         </footer>
       </div>
 
-      {/* Claim Modal */}
+      {/* Floating Cart Button */}
       <AnimatePresence>
-        {selectedBook && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        {cart.length > 0 && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            onClick={() => setIsCartOpen(true)}
+            className="fixed bottom-8 right-8 w-16 h-16 bg-[#6364ff] text-white rounded-full shadow-2xl flex items-center justify-center z-40 group"
+          >
+            <ShoppingCart className="w-6 h-6 transition-transform group-hover:scale-110" />
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-6 h-6 rounded-full border-2 border-white flex items-center justify-center">
+              {cart.length}
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Cart Drawer / Modal */}
+      <AnimatePresence>
+        {isCartOpen && (
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center pt-12">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => !isClaiming && !isSuccess && setSelectedBook(null)}
-              className="absolute inset-0 bg-[#6364ff]/30 backdrop-blur-sm" 
+              onClick={handleManualClose}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
             />
-            
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative overflow-hidden"
-              style={{ maxHeight: '90vh' }}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-lg bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              {/* Modal Header */}
-              <div className="p-6 md:p-8 flex items-start justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-serif font-semibold text-[#6364ff]">
-                    {isSuccess ? t.successTitle : t.claimModalTitle}
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    {isSuccess ? t.successSubtitle : t.claimModalSubtitle}
-                  </p>
+              <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                  <h2 className="text-xl font-serif tracking-tight">{isSuccess ? t.successTitle : t.claimModalTitle}</h2>
+                  {!isSuccess && <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mt-1">{cart.length} ITEMS IN CART</p>}
                 </div>
-                {!isClaiming && !isSuccess && (
-                  <button onClick={() => setSelectedBook(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
+                <button onClick={handleManualClose} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
               </div>
 
-              {isSuccess ? (
-                <div className="px-8 pb-12 flex flex-col items-center text-center">
-                  <motion.div 
-                    initial={{ scale: 0 }} 
-                    animate={{ scale: 1 }} 
-                    className="w-16 h-16 bg-green-50 text-[#10b981] rounded-full flex items-center justify-center mb-6"
-                  >
-                    <CheckCircle2 className="w-8 h-8" />
-                  </motion.div>
-                  <h3 className="text-xl font-serif mb-2 tracking-tight">{t.thankYou}</h3>
-                  <p className="text-xs text-gray-500 mb-8 max-w-[280px] mx-auto leading-relaxed">
-                    We've attempted to open a direct message window on your instance. If it didn't open, please use the button below.
-                  </p>
-                  
-                  <div className="flex flex-col gap-3 w-full">
-                    <Button 
-                      variant="primary" 
-                      onClick={() => {
-                        const url = getShareUrl();
-                        if (url) window.open(url, '_blank');
-                      }} 
-                      className="w-full"
+              <div className="flex-grow overflow-y-auto p-6">
+                {isSuccess ? (
+                  <div className="py-12 text-center">
+                    <motion.div 
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="w-16 h-16 bg-green-50 text-[#10b981] rounded-full flex items-center justify-center mx-auto mb-6"
                     >
-                      Retry Redirect / 再次尝试跳转
-                    </Button>
-                    <Button variant="secondary" onClick={handleManualClose} className="w-full border-gray-100">
-                      Done / 完成
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <form onSubmit={handleClaimSubmit} className="px-8 pb-8 space-y-6">
-                  {/* Selected Item Summary */}
-                  <div className="flex gap-4 p-4 bg-[#6364ff]/5 rounded-2xl border border-[#6364ff]/10">
-                    <img 
-                      src={selectedBook.coverImage} 
-                      className="w-12 h-18 object-cover rounded shadow-sm" 
-                      alt="Book preview"
-                      referrerPolicy="no-referrer"
-                      onError={handleImageError}
-                      data-original-url={selectedBook.coverImage.includes('googleusercontent.com') ? decodeURIComponent(new URL(selectedBook.coverImage).searchParams.get('url') || '') : selectedBook.coverImage}
-                    />
-                    <div className="flex flex-col justify-center">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#6364ff] opacity-60">{t.selectedItem}</p>
-                      <p className="font-serif text-sm font-semibold truncate max-w-[200px]">{selectedBook.title}</p>
-                      <p className="text-lg font-serif font-bold text-[#6364ff]">¥{selectedBook.charityPrice}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
-                        <User className="w-3 h-3" /> {t.handleLabel}
-                      </label>
-                      <input 
-                        required
-                        type="text"
-                        placeholder="@user@instance.social"
-                        value={handle}
-                        onChange={(e) => setHandle(e.target.value)}
-                        className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all font-mono"
-                      />
-                    </div>
-                    
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
-                        <MapPin className="w-3 h-3" /> {t.addressLabel}
-                      </label>
-                      <textarea 
-                        required
-                        placeholder={t.addressPlaceholder}
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        rows={3}
-                        className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all resize-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Notice */}
-                  <div className="p-4 bg-orange-50 rounded-xl border border-orange-100 flex gap-3">
-                    <Package className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-orange-700 leading-relaxed">
-                      {t.shippingNotice}
+                      <CheckCircle2 className="w-8 h-8" />
+                    </motion.div>
+                    <h3 className="text-xl font-serif mb-2 tracking-tight">{t.thankYou}</h3>
+                    <p className="text-xs text-gray-500 mb-8 max-w-[280px] mx-auto leading-relaxed">
+                      We've attempted to open a direct message window on your instance. If it didn't open, please use the button below.
                     </p>
+                    
+                    <div className="flex flex-col gap-3 w-full max-w-sm mx-auto">
+                      <Button 
+                        variant="primary" 
+                        onClick={() => {
+                          const url = getShareUrl();
+                          if (url) window.open(url, '_blank');
+                        }} 
+                        className="w-full"
+                      >
+                        Retry Redirect / 再次尝试跳转
+                      </Button>
+                      <Button variant="secondary" onClick={handleManualClose} className="w-full border-gray-100">
+                        Done / 完成 / 清空购物车
+                      </Button>
+                    </div>
                   </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* Cart Items */}
+                    <div className="space-y-4">
+                      {cart.map(item => (
+                        <div key={item.id} className="flex gap-4 p-3 bg-gray-50/50 rounded-2xl border border-gray-50 group">
+                          <img 
+                            src={item.coverImage} 
+                            className="w-16 h-24 object-cover rounded-lg shadow-sm" 
+                            alt={item.title}
+                            referrerPolicy="no-referrer"
+                            onError={handleImageError}
+                            data-original-url={item.coverImage.includes('googleusercontent.com') ? decodeURIComponent(new URL(item.coverImage).searchParams.get('url') || '') : item.coverImage}
+                          />
+                          <div className="flex-grow flex flex-col justify-between py-1">
+                            <div>
+                              <div className="flex justify-between items-start">
+                                <h4 className="text-sm font-serif font-bold leading-tight line-clamp-2 pr-4">{item.title}</h4>
+                                <button 
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="text-gray-300 hover:text-red-400 transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-wider">{t[item.category] || item.category}</p>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-sm font-mono font-bold text-[#6364ff]">¥{item.charityPrice}</span>
+                              <span className="text-[10px] text-gray-300 line-through">¥{item.originalPrice}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full py-4 text-base" 
-                    loading={isClaiming}
-                  >
-                    <Send className="w-4 h-4" />
-                    {t.donateAndClaim}
-                  </Button>
+                    <div className="border-t border-gray-50 pt-6 space-y-6">
+                      <div className="flex justify-between items-baseline">
+                        <span className="font-serif italic text-gray-500">Total Charity Donation</span>
+                        <span className="text-3xl font-serif font-bold text-[#6364ff] tracking-tighter">¥{totalPrice}</span>
+                      </div>
 
-                  <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 uppercase tracking-widest pt-2">
-                    <Lock className="w-3 h-3" />
-                    {t.secureCheckout}
+                      <form onSubmit={handleClaimSubmit} className="space-y-4">
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
+                              <Server className="w-3 h-3" /> {t.handleLabel}
+                            </label>
+                            <input 
+                              required
+                              type="text"
+                              placeholder={t.handlePlaceholder}
+                              value={handle}
+                              onChange={(e) => setHandle(e.target.value)}
+                              className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all font-mono"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
+                              <User className="w-3 h-3" /> {t.nameLabel}
+                            </label>
+                            <input 
+                              required
+                              type="text"
+                              placeholder={t.namePlaceholder}
+                              value={recipientName}
+                              onChange={(e) => setRecipientName(e.target.value)}
+                              className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all font-mono"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
+                              <ArrowRight className="w-3 h-3" /> {t.phoneLabel}
+                            </label>
+                            <input 
+                              required
+                              type="tel"
+                              placeholder={t.phonePlaceholder}
+                              value={phone}
+                              onChange={(e) => setPhone(e.target.value)}
+                              className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all font-mono"
+                            />
+                          </div>
+                          
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6364ff]/60 px-1 ml-1 flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3" /> {t.addressLabel}
+                            </label>
+                            <textarea 
+                              required
+                              placeholder={t.addressPlaceholder}
+                              value={address}
+                              onChange={(e) => setAddress(e.target.value)}
+                              rows={3}
+                              className="w-full bg-[#faf9f6] border border-[#6364ff]/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#6364ff]/20 transition-all resize-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Notice */}
+                        <div className="space-y-3">
+                          <div className="p-4 bg-orange-50 rounded-xl border border-orange-100 flex gap-3">
+                            <Package className="w-4 h-4 text-orange-600 mt-0.5 shrink-0" />
+                            <p className="text-[11px] text-orange-700 leading-relaxed">
+                              {t.shippingNotice}
+                            </p>
+                          </div>
+                          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-3">
+                            <ShieldCheck className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                            <p className="text-[11px] text-blue-700 leading-relaxed">
+                              {t.manualConfirmationNotice}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-4">
+                          <Button 
+                            type="submit" 
+                            disabled={isClaiming || cart.length === 0} 
+                            className="w-full py-4 text-base" 
+                            loading={isClaiming}
+                          >
+                            <ArrowRight className="w-4 h-4" />
+                            {t.donateAndClaim} ({cart.length})
+                          </Button>
+                          <p className="mt-4 text-[10px] text-center text-gray-400 leading-relaxed max-w-[280px] mx-auto italic">
+                            By clicking claim, we'll help you compose a direct message to @twoheart on your instance to confirm.
+                          </p>
+                        </div>
+                      </form>
+                    </div>
                   </div>
-                </form>
               )}
+              </div>
             </motion.div>
           </div>
         )}
