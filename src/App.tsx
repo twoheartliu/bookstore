@@ -44,7 +44,7 @@ const TRANSLATIONS = {
   en: {
     siteTitle: "Twoheart's Moving Sale",
     siteTitleZh: '二心的旧书架',
-    subtitle: "Welcome to nofan! Created for Fanfou refugees. Pick a 'Bundle' or a single book; all proceeds go to site maintenance.",
+    subtitle: "Select books you're interested in and add them to your cart. All proceeds will be used for nofan site maintenance.",
     nodeInfo: 'Instance Node: nofan.xyz',
     fundraisingProgress: 'Fundraising Progress',
     proceedsNotice: 'All proceeds go directly to server hosting & bandwidth.',
@@ -91,7 +91,7 @@ const TRANSLATIONS = {
   zh: {
     siteTitle: '二心的旧书架',
     siteTitleZh: "Twoheart's Moving Sale",
-    subtitle: '挑选你感兴趣的“主题包”或者单本，所有收益将用于 nofan 站点运维。',
+    subtitle: '自由加购你感兴趣的书，所有收益将用于 nofan 站点运维。',
     nodeInfo: '实例节点: nofan.xyz',
     fundraisingProgress: '筹款进度',
     proceedsNotice: '所有收益将直接用于服务器托管和带宽支出。',
