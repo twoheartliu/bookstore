@@ -32,6 +32,7 @@ interface Book {
   category: string;
   coverImage: string;
   isClaimed: boolean;
+  isLocked?: boolean;
   claimedBy?: string;
   description: string;
   doubanUrl?: string; // New field from Gist
@@ -60,7 +61,9 @@ const TRANSLATIONS = {
     claimedBy: 'Claimed By',
     bundle: 'Bundle',
     claimBook: 'Claim Book',
-    reserved: 'Reserved',
+    soldOut: 'Sold Out',
+    locked: 'Claiming...',
+    lockConflict: 'Sorry, the following books in your cart have been claimed by someone else: ',
     claimModalTitle: 'Claim this read',
     claimModalSubtitle: 'Support the instance and claim your item.',
     successTitle: 'Success!',
@@ -107,7 +110,9 @@ const TRANSLATIONS = {
     claimedBy: '认领者',
     bundle: '套装',
     claimBook: '认领书籍',
-    reserved: '已预订',
+    soldOut: '已售罄',
+    locked: '认领中',
+    lockConflict: '抱歉，你购物车中的以下书籍已被其他站友抢先认领了：',
     claimModalTitle: '认领此书',
     claimModalSubtitle: '支持实例运行，认领你的书籍。',
     successTitle: '成功！',
@@ -138,7 +143,8 @@ const TRANSLATIONS = {
 };
 
 // --- Data ---
-const GIST_URL = 'https://gist.githubusercontent.com/twoheartliu/de948c91619fd8cb1c26e9b14b7dc100/raw';
+const BOOKS_API = '/api/books';
+const LOCK_API = '/api/lock';
 
 // --- Components ---
 
@@ -183,6 +189,7 @@ const Badge = ({ children, variant = "default" }: any) => {
   const variants: any = {
     default: "bg-white/95 text-[#6364ff] border border-[#6364ff]/20 shadow-sm",
     sold: "bg-gray-100 text-gray-500 border border-transparent",
+    locked: "bg-blue-50 text-blue-600 border border-blue-100",
     accent: "bg-orange-100 text-orange-700 border border-transparent"
   };
   return (
@@ -249,9 +256,10 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
 
 const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t }: { book: Book; onAddToCart: (b: Book) => void; onRemoveFromCart: (id: string) => void; isInCart: boolean; t: any }) => {
   const categoryLabel = t[book.category] || book.category;
+  const isUnavailable = book.isClaimed || book.isLocked;
   
   return (
-    <Card className={`flex flex-col h-full ${book.isClaimed ? 'opacity-70 grayscale-[0.3]' : ''}`}>
+    <Card className={`flex flex-col h-full ${isUnavailable ? 'opacity-70 grayscale-[0.3]' : ''}`}>
       <div className="relative aspect-[3/4] overflow-hidden group">
         <img 
           src={book.coverImage} 
@@ -262,8 +270,8 @@ const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t }: { book: 
           data-original-url={book.coverImage.includes('googleusercontent.com') ? decodeURIComponent(new URL(book.coverImage).searchParams.get('url') || '') : book.coverImage}
         />
         <div className="absolute top-2 left-2 flex flex-col gap-1">
-          <Badge variant={book.isClaimed ? "sold" : (isInCart ? "accent" : "default")}>
-            {book.isClaimed ? t.reserved : categoryLabel}
+          <Badge variant={book.isClaimed ? "sold" : (book.isLocked ? "locked" : (isInCart ? "accent" : "default"))}>
+            {book.isClaimed ? t.soldOut : (book.isLocked ? t.locked : categoryLabel)}
           </Badge>
         </div>
         {book.doubanUrl && (
@@ -301,12 +309,12 @@ const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t }: { book: 
             <span className="text-[10px] text-gray-300 line-through">¥{book.originalPrice}</span>
           </div>
           <Button 
-            variant={book.isClaimed ? "secondary" : (isInCart ? "secondary" : "primary")}
-            disabled={book.isClaimed}
+            variant={isUnavailable ? "secondary" : (isInCart ? "secondary" : "primary")}
+            disabled={isUnavailable}
             onClick={() => isInCart ? onRemoveFromCart(book.id) : onAddToCart(book)}
             className="!px-3 !py-1.5 min-w-[100px]"
           >
-            {book.isClaimed ? t.reserved : (isInCart ? t.removeFromCart : t.addToCart)}
+            {book.isClaimed ? t.soldOut : (book.isLocked ? t.locked : (isInCart ? t.removeFromCart : t.addToCart))}
           </Button>
         </div>
       </div>
@@ -401,7 +409,7 @@ export default function App() {
       try {
         setFetchError(null);
         // Add cache-buster to ensure we get fresh data
-        const response = await fetch(`${GIST_URL}?t=${Date.now()}`);
+        const response = await fetch(`${BOOKS_API}?t=${Date.now()}`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const data = await response.json();
@@ -418,6 +426,7 @@ export default function App() {
           category: item.category || 'single',
           coverImage: getProxiedImage(item.cover),
           isClaimed: item.status === 'sold_out',
+          isLocked: item.status === 'locked',
           claimedBy: item.claimedBy,
           description: item.description,
           doubanUrl: item.doubanUrl
@@ -426,13 +435,16 @@ export default function App() {
         setBooks(formattedBooks);
       } catch (error: any) {
         console.error('Failed to fetch books:', error);
-        setFetchError(error.message || 'Failed to sync with the library Gist');
+        setFetchError(error.message || 'Failed to sync with the library');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchBooks();
+    // Poll for updates every 30 seconds to keep locked/sold status fresh
+    const interval = setInterval(fetchBooks, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const getShareUrl = () => {
@@ -460,22 +472,45 @@ export default function App() {
     setCart(cart.filter(b => b.id !== bookId));
   };
 
-  const handleClaimSubmit = (e: React.FormEvent) => {
+  const handleClaimSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsClaiming(true);
 
-    // Mock processing
-    setTimeout(() => {
-      setIsClaiming(false);
-      setIsSuccess(true);
-      
-      const shareUrl = getShareUrl();
-      if (shareUrl) {
-        window.open(shareUrl, '_blank');
-      }
+    try {
+      // 1. Calling lock API
+      const response = await fetch(LOCK_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bookIds: cart.map(b => b.id) }),
+      });
 
-      // Removed manual state update of books as per user request
-    }, 2000);
+      if (response.ok) {
+        // Success: Locked. Proceed with share link.
+        setIsClaiming(false);
+        setIsSuccess(true);
+        
+        const shareUrl = getShareUrl();
+        if (shareUrl) {
+          window.open(shareUrl, '_blank');
+        }
+      } else if (response.status === 409) {
+        // Conflict
+        const data = await response.json();
+        const titles = data.conflictedTitles?.map((t: string) => `《${t}》`).join('、');
+        alert(`${t.lockConflict}${titles}`);
+        // Refresh page to sync state
+        window.location.reload();
+      } else {
+        throw new Error('Unexpected error during locking');
+      }
+    } catch (error) {
+      console.error('Locking failed:', error);
+      alert('Network error or server error. Please try again.');
+    } finally {
+      setIsClaiming(false);
+    }
   };
 
   const handleManualClose = () => {
