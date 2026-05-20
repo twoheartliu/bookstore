@@ -87,6 +87,10 @@ const TRANSLATIONS = {
     shippingNotice: 'Note: Books are heavy. To simplify shipping costs, all items are shipped via SF Express Pay-on-Delivery (顺丰到付). This is the same price as pre-paid.',
     donateAndClaim: 'Donate & Claim',
     secureCheckout: 'SECURE FEDERATED CHECKOUT',
+    campaignEndedTitle: 'Bookstore Closed',
+    campaignEndedMessage: 'The fundraising campaign has ended. All books have found new homes. Thank you for your support!',
+    ended: 'Ended',
+    close: 'Close',
     serverStatus: 'Server Status',
     statusOnline: 'Online',
     builtForFed: 'Built for the nofan Federation'
@@ -136,6 +140,10 @@ const TRANSLATIONS = {
     shippingNotice: '注：书籍较重，为节省计算邮费和称重的精力，所有书籍统一发顺丰到付（顺丰到付与寄付价格一致，无额外溢价）。',
     donateAndClaim: '去结算 & 发送私信',
     secureCheckout: '安全联邦结账',
+    campaignEndedTitle: '书店已打烊',
+    campaignEndedMessage: '本次筹款活动已结束，所有书籍都找到了新主人。感谢大家的支持！',
+    ended: '已结束',
+    close: '关闭',
     serverStatus: '服务器状态',
     statusOnline: '在线',
     builtForFed: '爱来自 nofan'
@@ -145,6 +153,7 @@ const TRANSLATIONS = {
 // --- Data ---
 const BOOKS_API = 'https://api.nofan.xyz/api/books';
 const LOCK_API = 'https://api.nofan.xyz/api/lock';
+const CAMPAIGN_MANUALLY_ENDED = true; // Set to true to force-end the campaign
 
 // --- Components ---
 
@@ -199,7 +208,7 @@ const Badge = ({ children, variant = "default" }: any) => {
   );
 };
 
-const ProgressBar = ({ current, goal, t }: { current: number; goal: number; t: any }) => {
+const ProgressBar = ({ current, goal, t, campaignEnded }: { current: number; goal: number; t: any; campaignEnded: boolean }) => {
   const percentage = Math.min((current / goal) * 100, 100);
   return (
     <div className="w-full">
@@ -210,14 +219,16 @@ const ProgressBar = ({ current, goal, t }: { current: number; goal: number; t: a
             ¥{current.toLocaleString()} <span className="text-xs font-normal text-gray-300">/ ¥{goal.toLocaleString()}</span>
           </span>
         </div>
-        <span className="text-xs font-mono text-[#6364ff] font-bold">{Math.round(percentage)}%</span>
+        <span className="text-xs font-mono text-[#6364ff] font-bold">
+          {campaignEnded ? t.ended : `${Math.round(percentage)}%`}
+        </span>
       </div>
       <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-        <motion.div 
+        <motion.div
           initial={{ width: 0 }}
-          animate={{ width: `${percentage}%` }}
+          animate={{ width: `${campaignEnded ? 100 : percentage}%` }}
           transition={{ duration: 1.5, ease: "easeOut" }}
-          className="h-full bg-gradient-to-r from-[#6364ff] to-[#7b7cff]" 
+          className={`h-full bg-gradient-to-r from-[#6364ff] to-[#7b7cff] ${campaignEnded ? 'opacity-80' : ''}`}
         />
       </div>
     </div>
@@ -254,9 +265,9 @@ const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
   }
 };
 
-const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t }: { book: Book; onAddToCart: (b: Book) => void; onRemoveFromCart: (id: string) => void; isInCart: boolean; t: any }) => {
+const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t, campaignEnded }: { book: Book; onAddToCart: (b: Book) => void; onRemoveFromCart: (id: string) => void; isInCart: boolean; t: any; campaignEnded: boolean }) => {
   const categoryLabel = t[book.category] || book.category;
-  const isUnavailable = book.isClaimed || book.isLocked;
+  const isUnavailable = campaignEnded || book.isClaimed || book.isLocked;
   
   return (
     <Card className={`flex flex-col h-full ${isUnavailable ? 'opacity-70 grayscale-[0.3]' : ''}`}>
@@ -308,13 +319,13 @@ const BookCard = ({ book, onAddToCart, onRemoveFromCart, isInCart, t }: { book: 
             <span className="text-lg font-serif font-bold text-[#6364ff]">¥{book.charityPrice}</span>
             <span className="text-[10px] text-gray-300 line-through">¥{book.originalPrice}</span>
           </div>
-          <Button 
+          <Button
             variant={isUnavailable ? "secondary" : (isInCart ? "secondary" : "primary")}
             disabled={isUnavailable}
             onClick={() => isInCart ? onRemoveFromCart(book.id) : onAddToCart(book)}
             className="!px-3 !py-1.5 min-w-[100px]"
           >
-            {book.isClaimed ? t.soldOut : (book.isLocked ? t.locked : (isInCart ? t.removeFromCart : t.addToCart))}
+            {campaignEnded ? t.ended : (book.isClaimed ? t.soldOut : (book.isLocked ? t.locked : (isInCart ? t.removeFromCart : t.addToCart)))}
           </Button>
         </div>
       </div>
@@ -365,6 +376,17 @@ export default function App() {
   const totalGoal = useMemo(() => {
     return books.reduce((sum, b) => sum + b.charityPrice, 0);
   }, [books]);
+
+  const campaignEnded = useMemo(() => {
+    if (books.length === 0) return false;
+    return CAMPAIGN_MANUALLY_ENDED || books.every(b => b.isClaimed);
+  }, [books]);
+
+  const [showEndedModal, setShowEndedModal] = useState(false);
+
+  useEffect(() => {
+    if (campaignEnded) setShowEndedModal(true);
+  }, [campaignEnded]);
 
   const getProxiedImage = (url: string) => {
     if (!url) return '';
@@ -558,7 +580,7 @@ export default function App() {
             </div>
             
             <div className="md:w-1/3 bg-white p-6 rounded-2xl border border-[#6364ff]/10 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
-              <ProgressBar current={currentFunds} goal={totalGoal} t={t} />
+              <ProgressBar current={currentFunds} goal={totalGoal} t={t} campaignEnded={campaignEnded} />
               <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#6364ff]" />
                 <span>{t.proceedsNotice}</span>
@@ -614,12 +636,13 @@ export default function App() {
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <BookCard 
-                      book={book} 
-                      onAddToCart={addToCart} 
+                    <BookCard
+                      book={book}
+                      onAddToCart={addToCart}
                       onRemoveFromCart={removeFromCart}
                       isInCart={!!cart.find(b => b.id === book.id)}
-                      t={t} 
+                      t={t}
+                      campaignEnded={campaignEnded}
                     />
                   </motion.div>
                 ))}
@@ -648,7 +671,7 @@ export default function App() {
 
       {/* Floating Cart Button */}
       <AnimatePresence>
-        {cart.length > 0 && (
+        {cart.length > 0 && !campaignEnded && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -901,6 +924,45 @@ export default function App() {
                   </div>
               )}
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Campaign Ended Modal */}
+      <AnimatePresence>
+        {showEndedModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEndedModal(false)}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center"
+            >
+              <div className="w-16 h-16 bg-[#6364ff]/10 text-[#6364ff] rounded-full flex items-center justify-center mx-auto mb-6">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-serif font-bold text-gray-900 mb-3 tracking-tight">
+                {t.campaignEndedTitle}
+              </h2>
+              <p className="text-sm text-gray-500 leading-relaxed mb-8">
+                {t.campaignEndedMessage}
+              </p>
+              <Button
+                variant="primary"
+                onClick={() => setShowEndedModal(false)}
+                className="w-full"
+              >
+                {t.close}
+              </Button>
             </motion.div>
           </div>
         )}
